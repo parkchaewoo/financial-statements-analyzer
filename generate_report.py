@@ -396,43 +396,40 @@ def compute_derived_metrics(data: dict, required_return: float,
 
 
 def _compute_ttm(quarterly_data: dict, latest_annual_year: int = 0) -> dict | None:
-    """최근 4분기 데이터로 TTM 계산
+    """연간 보고서 이후 분기만으로 TTM 계산
 
-    IS/CF: 최근 4분기 합산
-    BS: 최근 분기 값 (시점 데이터)
+    연간 보고서에 이미 포함된 분기는 제외하고,
+    그 이후에 나온 분기 보고서만 합산.
 
-    연간 보고서(latest_annual_year) 이후 분기가 있어야만 TTM 계산.
-    예: latest_annual_year=2024이면 2025Q1 이후 분기가 있을 때만 TTM 생성.
+    예: latest_annual_year=2024, 2025 Q1~Q3 있음 → TTM = Q1+Q2+Q3
+        latest_annual_year=2025, 2026 Q1 있음 → TTM = Q1
+
+    IS/CF: 해당 분기 합산
+    BS: 최신 분기 값 (시점 데이터)
     """
-    if not quarterly_data:
+    if not quarterly_data or not latest_annual_year:
         return None
 
     quarters = quarterly_data.get("quarters", [])
-    if len(quarters) < 4:
+
+    # 연간 보고서 이후 분기만 필터
+    post_annual_q = [q for q in quarters if int(q[:4]) > latest_annual_year]
+    if not post_annual_q:
         return None
 
-    # 연간 보고서 이후 분기가 있는지 확인
-    if latest_annual_year:
-        has_post_annual = any(
-            int(q[:4]) > latest_annual_year for q in quarters
-        )
-        if not has_post_annual:
-            return None  # 연간과 동일 → TTM 불필요
+    latest_q = post_annual_q[-1]
 
-    recent_4q = quarters[-4:]  # 최근 4분기
-    latest_q = quarters[-1]    # 최신 분기
-
-    # IS: 4분기 합산
+    # IS: 해당 분기 합산
     ttm_summary = {}
     qs = quarterly_data.get("quarterly_summary", {})
     all_is_keys = set()
-    for q in recent_4q:
+    for q in post_annual_q:
         all_is_keys.update(qs.get(q, {}).keys())
 
     for key in all_is_keys:
         total = 0
         has_data = False
-        for q in recent_4q:
+        for q in post_annual_q:
             val = qs.get(q, {}).get(key, 0)
             if val:
                 total += val
@@ -446,17 +443,17 @@ def _compute_ttm(quarterly_data: dict, latest_annual_year: int = 0) -> dict | No
     if latest_q in qbs:
         ttm_bs = dict(qbs[latest_q])
 
-    # CF: 4분기 합산
+    # CF: 해당 분기 합산
     ttm_cf = {}
     qcf = quarterly_data.get("quarterly_cf", {})
     all_cf_keys = set()
-    for q in recent_4q:
+    for q in post_annual_q:
         all_cf_keys.update(qcf.get(q, {}).keys())
 
     for key in all_cf_keys:
         total = 0
         has_data = False
-        for q in recent_4q:
+        for q in post_annual_q:
             val = qcf.get(q, {}).get(key, 0)
             if val:
                 total += val
@@ -468,7 +465,7 @@ def _compute_ttm(quarterly_data: dict, latest_annual_year: int = 0) -> dict | No
         "financial_summary": ttm_summary,
         "balance_sheet": ttm_bs,
         "cash_flow": ttm_cf,
-        "quarters_used": recent_4q,
+        "quarters_used": post_annual_q,
     }
 
 
