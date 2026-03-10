@@ -71,7 +71,31 @@ else:
     st.sidebar.caption("DART API 키 미설정 → 해외 주식만 사용 가능")
 
 if tab_choice == "리포트 생성":
-    stock_query = st.sidebar.text_input("종목명 또는 코드", placeholder="삼성전자 / 005930 / AAPL")
+    stock_input = st.sidebar.text_input("종목 검색", placeholder="애플 / Apple / AAPL")
+
+    # 종목 검색 기능
+    if stock_input and st.sidebar.button("검색", use_container_width=True):
+        try:
+            fetcher = get_fetcher(market)
+            results = fetcher.search_stock(stock_input, limit=10)
+            if results:
+                st.session_state["search_results"] = results
+            else:
+                st.session_state["search_results"] = []
+                st.sidebar.warning("검색 결과가 없습니다.")
+        except Exception as e:
+            st.session_state["search_results"] = []
+            st.sidebar.warning(f"검색 실패: {e}")
+
+    # 검색 결과가 있으면 선택 UI 표시
+    if st.session_state.get("search_results"):
+        results = st.session_state["search_results"]
+        options = [f"{r['stock_code']} - {r['corp_name']}" for r in results]
+        selected = st.sidebar.selectbox("종목 선택", options)
+        stock_query = selected.split(" - ")[0]  # 코드만 추출
+    else:
+        stock_query = stock_input  # 직접 입력한 값 사용
+
     num_years = st.sidebar.slider("분석 연도 수", 3, 10, DEFAULT_ANALYSIS_YEARS)
     required_return = st.sidebar.number_input(
         "목표 수익률 (%)", min_value=1.0, max_value=30.0,
