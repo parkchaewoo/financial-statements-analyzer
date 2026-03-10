@@ -191,7 +191,8 @@ class QuarterlyReportGenerator(PDFReportBase):
 
         # 테이블 구성
         year_label = str(latest_year) if latest_year else "-"
-        header = [f"[TTM vs 최근 연간 비교]", f"최근연간({year_label})", "TTM", "변화"]
+        ttm_label = ttm.get("ttm_label", "TTM")
+        header = [f"[TTM vs 최근 연간 비교]", f"최근연간({year_label})", ttm_label, "변화"]
         rows_data = [header]
 
         for label, ann_val, ttm_val, unit in metrics:

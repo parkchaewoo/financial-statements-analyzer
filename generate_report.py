@@ -419,8 +419,33 @@ def _compute_ttm(quarterly_data: dict, latest_annual_year: int = 0) -> dict | No
 
     latest_q = post_annual_q[-1]
 
+    # 분기→연간 필드명 매핑 (DART 분기 보고서는 다른 이름 사용)
+    _QUARTERLY_TO_ANNUAL = {
+        "분기순이익": "당기순이익",
+        "반기순이익": "당기순이익",
+        "분기순이익(손실)": "당기순이익(손실)",
+        "반기순이익(손실)": "당기순이익(손실)",
+        "분기총포괄이익": "총포괄이익",
+        "반기총포괄이익": "총포괄이익",
+        "기본주당분기순이익": "기본주당이익",
+        "기본주당반기순이익": "기본주당이익",
+        "희석주당분기순이익": "희석주당이익",
+        "희석주당반기순이익": "희석주당이익",
+    }
+
+    def _normalize_key(key: str) -> str:
+        """분기 필드명을 연간 필드명으로 변환"""
+        # CIS_ 접두사 처리
+        prefix = ""
+        bare = key
+        if key.startswith("CIS_") or key.startswith("IS_"):
+            prefix = key[:key.index("_") + 1]
+            bare = key[key.index("_") + 1:]
+        normalized = _QUARTERLY_TO_ANNUAL.get(bare, bare)
+        return prefix + normalized
+
     # IS: 해당 분기 합산
-    ttm_summary = {}
+    raw_summary = {}
     qs = quarterly_data.get("quarterly_summary", {})
     all_is_keys = set()
     for q in post_annual_q:
@@ -435,7 +460,14 @@ def _compute_ttm(quarterly_data: dict, latest_annual_year: int = 0) -> dict | No
                 total += val
                 has_data = True
         if has_data:
-            ttm_summary[key] = total
+            raw_summary[key] = total
+
+    # 원본 키 유지 + 정규화된 키 추가 (연간 필드명으로 검색 가능하도록)
+    ttm_summary = dict(raw_summary)
+    for key, val in raw_summary.items():
+        norm_key = _normalize_key(key)
+        if norm_key != key and norm_key not in ttm_summary and val:
+            ttm_summary[norm_key] = val
 
     # BS: 최신 분기 값
     ttm_bs = {}
@@ -461,11 +493,16 @@ def _compute_ttm(quarterly_data: dict, latest_annual_year: int = 0) -> dict | No
         if has_data:
             ttm_cf[key] = total
 
+    # TTM 라벨: "2025 TTM" (사용 분기의 연도)
+    ttm_year = int(post_annual_q[-1][:4])
+    ttm_label = f"{ttm_year} TTM"
+
     return {
         "financial_summary": ttm_summary,
         "balance_sheet": ttm_bs,
         "cash_flow": ttm_cf,
         "quarters_used": post_annual_q,
+        "ttm_label": ttm_label,
     }
 
 

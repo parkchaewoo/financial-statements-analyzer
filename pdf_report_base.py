@@ -258,8 +258,10 @@ class PDFReportBase:
         info = report_data.get("company_info", {})
         self._currency = info.get("currency", "KRW")
 
+        ttm = report_data.get("ttm") or {}
+        has_ttm = bool(ttm.get("financial_summary"))
         include_quarterly = report_data.get("include_quarterly", False)
-        if include_quarterly and len(report_data.get("years", [])) > 4:
+        if (include_quarterly or has_ttm) and len(report_data.get("years", [])) > 4:
             report_data["display_years"] = report_data["years"][-4:]
         else:
             report_data["display_years"] = report_data.get("years", [])

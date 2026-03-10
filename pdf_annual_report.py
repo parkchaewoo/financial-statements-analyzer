@@ -114,14 +114,15 @@ class AnnualReportGenerator(PDFReportBase):
         years = data.get("display_years", data.get("years", []))
         fs = data.get("financial_summary", {})
         derived = data.get("derived", {})
-        include_quarterly = data.get("include_quarterly", False)
         ttm = data.get("ttm") or {}
         ttm_fs = ttm.get("financial_summary", {})
         ttm_derived = data.get("derived", {}).get("_ttm", {})
+        ttm_label = ttm.get("ttm_label", "TTM")
+        show_ttm = bool(ttm_fs)
 
         header = ["[손익계산서]"] + [f"{y}" for y in years]
-        if include_quarterly:
-            header.append("TTM")
+        if show_ttm:
+            header.append(ttm_label)
         rows = [header]
 
         items = [
@@ -143,7 +144,7 @@ class AnnualReportGenerator(PDFReportBase):
                     if val:
                         break
                 row.append(self._fmt_amt(val))
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = 0
                 for key in keys:
                     ttm_val = self._find_in_dict(ttm_fs, key)
@@ -168,7 +169,7 @@ class AnnualReportGenerator(PDFReportBase):
                     row.append(f"{val:+.1f}")
                 else:
                     row.append("-")
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = ttm_derived.get(key)
                 if ttm_val is not None:
                     row.append(f"{ttm_val:+.1f}")
@@ -177,19 +178,21 @@ class AnnualReportGenerator(PDFReportBase):
             rows.append(row)
 
         desc = f"단위: {self._unit_label()} | 성장률: 전년대비 YoY(%)"
-        return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=include_quarterly)
+        return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=show_ttm)
 
     # ── 수익성 ───────────────────────────────────────────────
 
     def _build_profitability(self, data: dict) -> Table:
         years = data.get("display_years", data.get("years", []))
         derived = data.get("derived", {})
-        include_quarterly = data.get("include_quarterly", False)
+        ttm = data.get("ttm") or {}
         ttm_derived = data.get("derived", {}).get("_ttm", {})
+        ttm_label = ttm.get("ttm_label", "TTM")
+        show_ttm = bool(ttm.get("financial_summary"))
 
         header = ["[수익성]"] + [f"{y}" for y in years]
-        if include_quarterly:
-            header.append("TTM")
+        if show_ttm:
+            header.append(ttm_label)
         rows = [header]
         highlights = {}
 
@@ -208,7 +211,7 @@ class AnnualReportGenerator(PDFReportBase):
                     risk = assess_metric(label, val)
                     if risk["level"] != LEVEL_OK:
                         highlights[(row_idx, col_idx)] = risk
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = ttm_derived.get(label, 0)
                 if label == "레버리지비율":
                     row.append(_fmt_num(ttm_val, "ratio") if ttm_val else "-")
@@ -217,7 +220,7 @@ class AnnualReportGenerator(PDFReportBase):
             rows.append(row)
 
         desc = "OPM: 매출대비 영업이익 | ROE: 자기자본이익률(8%↑ 양호) | ROA: 총자산이익률"
-        return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=include_quarterly)
+        return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=show_ttm)
 
     # ── 재무상태표 요약 ──────────────────────────────────────
 
@@ -225,14 +228,15 @@ class AnnualReportGenerator(PDFReportBase):
         years = data.get("display_years", data.get("years", []))
         fs = data.get("financial_summary", {})
         derived = data.get("derived", {})
-        include_quarterly = data.get("include_quarterly", False)
         ttm = data.get("ttm") or {}
         ttm_bs = ttm.get("balance_sheet", {})
         ttm_derived = data.get("derived", {}).get("_ttm", {})
+        ttm_label = ttm.get("ttm_label", "TTM")
+        show_ttm = bool(ttm.get("financial_summary"))
 
         header = ["[재무상태표]"] + [f"{y}" for y in years]
-        if include_quarterly:
-            header.append("TTM")
+        if show_ttm:
+            header.append(ttm_label)
         rows = [header]
 
         items = [
@@ -246,7 +250,7 @@ class AnnualReportGenerator(PDFReportBase):
             for y in years:
                 val = self._find_account(fs, y, key)
                 row.append(self._fmt_amt(val))
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = self._find_in_dict(ttm_bs, key)
                 row.append(self._fmt_amt(ttm_val))
             rows.append(row)
@@ -256,24 +260,26 @@ class AnnualReportGenerator(PDFReportBase):
         for y in years:
             val = derived.get(y, {}).get("순차입금", 0)
             row.append(self._fmt_amt(val))
-        if include_quarterly:
+        if show_ttm:
             row.append(self._fmt_amt(ttm_derived.get("순차입금", 0)))
         rows.append(row)
 
         desc = "자본총계: 순자산(자산-부채) | 순차입금: 이자발생부채-현금성자산 (음수=순현금)"
-        return self._section_table(rows, len(years), description=desc, ttm_column=include_quarterly)
+        return self._section_table(rows, len(years), description=desc, ttm_column=show_ttm)
 
     # ── 현금흐름표 ───────────────────────────────────────────
 
     def _build_cash_flow(self, data: dict) -> Table:
         years = data.get("display_years", data.get("years", []))
         derived = data.get("derived", {})
-        include_quarterly = data.get("include_quarterly", False)
+        ttm = data.get("ttm") or {}
         ttm_derived = data.get("derived", {}).get("_ttm", {})
+        ttm_label = ttm.get("ttm_label", "TTM")
+        show_ttm = bool(ttm.get("financial_summary"))
 
         header = ["[현금흐름표]"] + [f"{y}" for y in years]
-        if include_quarterly:
-            header.append("TTM")
+        if show_ttm:
+            header.append(ttm_label)
         rows = [header]
         highlights = {}
 
@@ -290,12 +296,11 @@ class AnnualReportGenerator(PDFReportBase):
             for col_idx, y in enumerate(years, 1):
                 val = derived.get(y, {}).get(key, 0)
                 row.append(self._fmt_amt(val))
-                # 위험 평가 (영업활동CF, FCF만)
                 if key in ("영업활동CF", "FCF") and val:
                     risk = assess_metric(key, val)
                     if risk["level"] != LEVEL_OK:
                         highlights[(row_idx, col_idx)] = risk
-            if include_quarterly:
+            if show_ttm:
                 row.append(self._fmt_amt(ttm_derived.get(key, 0)))
             rows.append(row)
 
@@ -309,25 +314,27 @@ class AnnualReportGenerator(PDFReportBase):
                 risk = assess_metric("PFCR", val)
                 if risk["level"] != LEVEL_OK:
                     highlights[(pfcr_row_idx, col_idx)] = risk
-        if include_quarterly:
+        if show_ttm:
             ttm_pfcr = ttm_derived.get("PFCR", 0)
             row.append(_fmt_num(ttm_pfcr, "ratio") if ttm_pfcr else "-")
         rows.append(row)
 
         desc = "영업CF: 본업 현금창출 | FCF: 잉여현금(배당/투자여력) | PFCR: 시총/FCF(낮을수록 저평가)"
-        return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=include_quarterly)
+        return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=show_ttm)
 
     # ── 밸류에이션 ───────────────────────────────────────────
 
     def _build_valuation(self, data: dict) -> Table:
         years = data.get("display_years", data.get("years", []))
         derived = data.get("derived", {})
-        include_quarterly = data.get("include_quarterly", False)
+        ttm = data.get("ttm") or {}
         ttm_derived = data.get("derived", {}).get("_ttm", {})
+        ttm_label = ttm.get("ttm_label", "TTM")
+        show_ttm = bool(ttm.get("financial_summary"))
 
         header = ["[밸류에이션]"] + [f"{y}" for y in years]
-        if include_quarterly:
-            header.append("TTM")
+        if show_ttm:
+            header.append(ttm_label)
         rows = [header]
         highlights = {}
 
@@ -352,7 +359,7 @@ class AnnualReportGenerator(PDFReportBase):
                     risk = assess_metric(label, val)
                     if risk["level"] != LEVEL_OK:
                         highlights[(row_idx, col_idx)] = risk
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = ttm_derived.get(key, 0)
                 if key in ("PER", "PBR"):
                     row.append(_fmt_num(ttm_val, "ratio") if ttm_val else "-")
@@ -362,7 +369,7 @@ class AnnualReportGenerator(PDFReportBase):
 
         desc = ("PER: 이익대비 주가(낮을수록 저평가) | PBR: 순자산대비 주가(1 미만 저평가)\n"
                 "EPS: 주당순이익(1주당 벌어들이는 이익) | BPS: 주당순자산(1주당 순자산가치)")
-        return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=include_quarterly)
+        return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=show_ttm)
 
     # ── 운전자본 ─────────────────────────────────────────────
 
@@ -370,14 +377,15 @@ class AnnualReportGenerator(PDFReportBase):
         years = data.get("display_years", data.get("years", []))
         bs = data.get("balance_sheet_detail", {})
         derived = data.get("derived", {})
-        include_quarterly = data.get("include_quarterly", False)
         ttm = data.get("ttm") or {}
         ttm_bs = ttm.get("balance_sheet", {})
         ttm_derived = data.get("derived", {}).get("_ttm", {})
+        ttm_label = ttm.get("ttm_label", "TTM")
+        show_ttm = bool(ttm.get("financial_summary"))
 
         header = ["[운전자본]"] + [f"{y}" for y in years]
-        if include_quarterly:
-            header.append("TTM")
+        if show_ttm:
+            header.append(ttm_label)
         rows = [header]
 
         wc_items = [
@@ -396,7 +404,7 @@ class AnnualReportGenerator(PDFReportBase):
                     if val:
                         break
                 row.append(self._fmt_amt(val))
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = 0
                 for key in item_names:
                     ttm_val = self._find_in_dict(ttm_bs, key)
@@ -410,7 +418,7 @@ class AnnualReportGenerator(PDFReportBase):
         for y in years:
             val = derived.get(y, {}).get("운전자본", 0)
             row.append(self._fmt_amt(val))
-        if include_quarterly:
+        if show_ttm:
             row.append(self._fmt_amt(ttm_derived.get("운전자본", 0)))
         rows.append(row)
 
@@ -419,13 +427,13 @@ class AnnualReportGenerator(PDFReportBase):
         for y in years:
             val = derived.get(y, {}).get("운전자본비율(%)", 0)
             row.append(_fmt_num(val, "pct") if val else "-")
-        if include_quarterly:
+        if show_ttm:
             ttm_val = ttm_derived.get("운전자본비율(%)", 0)
             row.append(_fmt_num(ttm_val, "pct") if ttm_val else "-")
         rows.append(row)
 
         desc = "매출채권+재고-매입채무. 영업에 묶인 운영자금. 매출대비 비율 높으면 자금 효율 낮음"
-        return self._section_table(rows, len(years), description=desc, ttm_column=include_quarterly)
+        return self._section_table(rows, len(years), description=desc, ttm_column=show_ttm)
 
     # ── CAPEX 자산 ───────────────────────────────────────────
 
@@ -433,14 +441,15 @@ class AnnualReportGenerator(PDFReportBase):
         years = data.get("display_years", data.get("years", []))
         bs = data.get("balance_sheet_detail", {})
         derived = data.get("derived", {})
-        include_quarterly = data.get("include_quarterly", False)
         ttm = data.get("ttm") or {}
         ttm_bs = ttm.get("balance_sheet", {})
         ttm_derived = data.get("derived", {}).get("_ttm", {})
+        ttm_label = ttm.get("ttm_label", "TTM")
+        show_ttm = bool(ttm.get("financial_summary"))
 
         header = ["[CAPEX 자산]"] + [f"{y}" for y in years]
-        if include_quarterly:
-            header.append("TTM")
+        if show_ttm:
+            header.append(ttm_label)
         rows = [header]
 
         items = [
@@ -459,7 +468,7 @@ class AnnualReportGenerator(PDFReportBase):
                     if val:
                         break
                 row.append(self._fmt_amt(val))
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = 0
                 for key in item_names:
                     ttm_val = self._find_in_dict(ttm_bs, key)
@@ -474,12 +483,12 @@ class AnnualReportGenerator(PDFReportBase):
             for y in years:
                 val = derived.get(y, {}).get(label_key[1], 0)
                 row.append(_fmt_num(val, "pct") if val else "-")
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = ttm_derived.get(label_key[1], 0)
                 row.append(_fmt_num(ttm_val, "pct") if ttm_val else "-")
             rows.append(row)
 
-        return self._section_table(rows, len(years), ttm_column=include_quarterly)
+        return self._section_table(rows, len(years), ttm_column=show_ttm)
 
     # ── 현금성자산 ───────────────────────────────────────────
 
@@ -487,14 +496,15 @@ class AnnualReportGenerator(PDFReportBase):
         years = data.get("display_years", data.get("years", []))
         bs = data.get("balance_sheet_detail", {})
         derived = data.get("derived", {})
-        include_quarterly = data.get("include_quarterly", False)
         ttm = data.get("ttm") or {}
         ttm_bs = ttm.get("balance_sheet", {})
         ttm_derived = data.get("derived", {}).get("_ttm", {})
+        ttm_label = ttm.get("ttm_label", "TTM")
+        show_ttm = bool(ttm.get("financial_summary"))
 
         header = ["[현금성자산]"] + [f"{y}" for y in years]
-        if include_quarterly:
-            header.append("TTM")
+        if show_ttm:
+            header.append(ttm_label)
         rows = [header]
 
         items = [
@@ -513,7 +523,7 @@ class AnnualReportGenerator(PDFReportBase):
                     if val:
                         break
                 row.append(self._fmt_amt(val))
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = 0
                 for key in item_names:
                     ttm_val = self._find_in_dict(ttm_bs, key)
@@ -527,11 +537,11 @@ class AnnualReportGenerator(PDFReportBase):
         for y in years:
             val = derived.get(y, {}).get("현금성자산합계", 0)
             row.append(self._fmt_amt(val))
-        if include_quarterly:
+        if show_ttm:
             row.append(self._fmt_amt(ttm_derived.get("현금성자산합계", 0)))
         rows.append(row)
 
-        return self._section_table(rows, len(years), ttm_column=include_quarterly)
+        return self._section_table(rows, len(years), ttm_column=show_ttm)
 
     # ── 차입금내역 ───────────────────────────────────────────
 
@@ -539,14 +549,15 @@ class AnnualReportGenerator(PDFReportBase):
         years = data.get("display_years", data.get("years", []))
         bs = data.get("balance_sheet_detail", {})
         derived = data.get("derived", {})
-        include_quarterly = data.get("include_quarterly", False)
         ttm = data.get("ttm") or {}
         ttm_bs = ttm.get("balance_sheet", {})
         ttm_derived = data.get("derived", {}).get("_ttm", {})
+        ttm_label = ttm.get("ttm_label", "TTM")
+        show_ttm = bool(ttm.get("financial_summary"))
 
         header = ["[차입금내역]"] + [f"{y}" for y in years]
-        if include_quarterly:
-            header.append("TTM")
+        if show_ttm:
+            header.append(ttm_label)
         rows = [header]
         highlights = {}
 
@@ -567,7 +578,7 @@ class AnnualReportGenerator(PDFReportBase):
                     if val:
                         break
                 row.append(self._fmt_amt(val))
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = 0
                 for key in item_names:
                     ttm_val = self._find_in_dict(ttm_bs, key)
@@ -581,7 +592,7 @@ class AnnualReportGenerator(PDFReportBase):
         for y in years:
             val = derived.get(y, {}).get("이자발생부채계산", 0)
             row.append(self._fmt_amt(val))
-        if include_quarterly:
+        if show_ttm:
             row.append(self._fmt_amt(ttm_derived.get("이자발생부채계산", 0)))
         rows.append(row)
 
@@ -597,25 +608,27 @@ class AnnualReportGenerator(PDFReportBase):
                     risk = assess_metric("단기채비중(%)", val)
                     if risk["level"] != LEVEL_OK:
                         highlights[(row_idx_short + i, col_idx)] = risk
-            if include_quarterly:
+            if show_ttm:
                 ttm_val = ttm_derived.get(key, 0)
                 row.append(_fmt_num(ttm_val, "pct") if ttm_val else "-")
             rows.append(row)
 
         desc = "단기차입 비중 높으면 유동성 리스크. 장기채 비중 높을수록 안정적"
-        return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=include_quarterly)
+        return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=show_ttm)
 
     # ── 순차입금현황 ─────────────────────────────────────────
 
     def _build_net_debt(self, data: dict) -> Table:
         years = data.get("display_years", data.get("years", []))
         derived = data.get("derived", {})
-        include_quarterly = data.get("include_quarterly", False)
+        ttm = data.get("ttm") or {}
         ttm_derived = data.get("derived", {}).get("_ttm", {})
+        ttm_label = ttm.get("ttm_label", "TTM")
+        show_ttm = bool(ttm.get("financial_summary"))
 
         header = ["[순차입금현황]"] + [f"{y}" for y in years]
-        if include_quarterly:
-            header.append("TTM")
+        if show_ttm:
+            header.append(ttm_label)
         rows = [header]
 
         for label in ["이자발생부채계산", "현금성자산합계", "순차입금"]:
@@ -623,11 +636,11 @@ class AnnualReportGenerator(PDFReportBase):
             for y in years:
                 val = derived.get(y, {}).get(label, 0)
                 row.append(self._fmt_amt(val))
-            if include_quarterly:
+            if show_ttm:
                 row.append(self._fmt_amt(ttm_derived.get(label, 0)))
             rows.append(row)
 
-        return self._section_table(rows, len(years), ttm_column=include_quarterly)
+        return self._section_table(rows, len(years), ttm_column=show_ttm)
 
     # ── 컨센서스 ───────────────────────────────────────────────
 
