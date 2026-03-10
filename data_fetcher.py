@@ -688,10 +688,11 @@ class DataFetcher:
         quarterly_bs = {}
         quarterly_cf = {}
 
-        # 수집 연도 목록: 기존 num_years + 현재 연도 (사업보고서 미발행 시)
+        # 수집 연도 목록: 기존 num_years + 사업보고서 이후~현재 연도 (분기 보고서)
+        # 예: latest_year=2024, current_year=2026 → [2023, 2024, 2025, 2026]
         years_to_fetch = list(range(latest_year - num_years + 1, latest_year + 1))
-        if current_year > latest_year:
-            years_to_fetch.append(current_year)
+        for y in range(latest_year + 1, current_year + 1):
+            years_to_fetch.append(y)
 
         for year in years_to_fetch:
             # 각 분기 보고서의 누적 데이터 수집
@@ -699,8 +700,8 @@ class DataFetcher:
             cum_cf = {}
             bs_data = {}  # BS는 시점 데이터 → 직접 사용
 
-            # 현재 연도는 Q1~Q3만 조회 (Q4=사업보고서는 아직 미발행)
-            if year == current_year and year > latest_year:
+            # 사업보고서 미발행 연도는 Q1~Q3만 조회
+            if year > latest_year:
                 codes_to_try = [(c, q) for c, q in QUARTERLY_REPORT_CODES if q != "Q4"]
             else:
                 codes_to_try = QUARTERLY_REPORT_CODES
