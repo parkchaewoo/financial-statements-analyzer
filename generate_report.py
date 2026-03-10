@@ -71,7 +71,7 @@ def collect_data(fetcher, stock_code: str, num_years: int,
     print("4/8 주가 데이터 조회 중...")
     stock_data = fetcher.fetch_stock_data(stock_code, shares=shares)
     if is_intl:
-        from pdf_report import _fmt_amount
+        from pdf_report_base import _fmt_amount
         ex_rate = stock_data.get("exchange_rate", 0)
         price_krw = stock_data.get("price_krw", 0)
         print(f"  → 주가: ${stock_data['price']:,.2f} ({price_krw:,}원), "
