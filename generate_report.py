@@ -481,12 +481,13 @@ def _compute_ttm_derived(ttm: dict, stock_data: dict) -> dict:
 
     td = {}
 
-    # 주요 계정 추출
+    # 주요 계정 추출 (분기 보고서: 당기→분기/반기 필드명 대응)
     revenue = _find(fs, "매출액", "영업수익")
     op_profit = _find(fs, "영업이익")
-    net_income = _find(fs, "당기순이익")
-    net_income_ctrl = _find(fs, "지배기업의 소유주에게 귀속되는 당기순이익",
-                            "당기순이익(지배)")
+    net_income = _find(fs, "당기순이익") or _find(fs, "분기순이익") or _find(fs, "반기순이익")
+    net_income_ctrl = (_find(fs, "지배기업의 소유주에게 귀속되는 당기순이익",
+                             "당기순이익(지배)")
+                       or _find(fs, "지배기업의 소유주지분"))
     total_assets = _find(bs_data, "자산총계")
     total_equity = _find(bs_data, "자본총계")
     equity_ctrl = _find(bs_data, "지배기업의 소유주에게 귀속되는 자본",
@@ -601,7 +602,7 @@ def _compute_quarterly_derived(quarterly_data: dict) -> tuple[dict, list]:
         d = {}
         revenue = _find(fs_q, "매출액", "영업수익")
         op_profit = _find(fs_q, "영업이익")
-        net_income = _find(fs_q, "당기순이익")
+        net_income = _find(fs_q, "당기순이익") or _find(fs_q, "분기순이익") or _find(fs_q, "반기순이익")
         total_equity = _find(bs_q, "자본총계")
         total_assets = _find(bs_q, "자산총계")
 
