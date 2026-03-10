@@ -667,32 +667,45 @@ class DataFetcher:
         DART 분기 보고서는 IS/CF가 누적 데이터이므로 단독 분기 값으로 역산 필요.
         BS 항목은 시점 데이터이므로 그대로 사용.
 
+        현재 연도의 분기 보고서(Q1~Q3)도 조회하여 TTM에 반영.
+
         Args:
             stock_code: 종목코드
             num_years: 수집할 연도 수 (기본 2년 = 최근 8분기)
 
         Returns:
             {
-                "quarters": ["2023Q1", ..., "2024Q4"],
+                "quarters": ["2023Q1", ..., "2025Q1"],
                 "quarterly_summary": {"2023Q1": {계정: 금액}, ...},
                 "quarterly_bs": {"2023Q1": {계정: 금액}, ...},
                 "quarterly_cf": {"2023Q1": {계정: 금액}, ...},
             }
         """
         latest_year = self.find_latest_available_year(stock_code)
+        current_year = datetime.now().year
         quarters = []
         quarterly_summary = {}
         quarterly_bs = {}
         quarterly_cf = {}
 
-        # 최근 num_years 연도에 대해 분기 보고서 수집
-        for year in range(latest_year - num_years + 1, latest_year + 1):
+        # 수집 연도 목록: 기존 num_years + 현재 연도 (사업보고서 미발행 시)
+        years_to_fetch = list(range(latest_year - num_years + 1, latest_year + 1))
+        if current_year > latest_year:
+            years_to_fetch.append(current_year)
+
+        for year in years_to_fetch:
             # 각 분기 보고서의 누적 데이터 수집
             cum_is = {}   # {"Q1": {계정: 누적값}, "Q2": {...}, ...}
             cum_cf = {}
             bs_data = {}  # BS는 시점 데이터 → 직접 사용
 
-            for reprt_code, q_label in QUARTERLY_REPORT_CODES:
+            # 현재 연도는 Q1~Q3만 조회 (Q4=사업보고서는 아직 미발행)
+            if year == current_year and year > latest_year:
+                codes_to_try = [(c, q) for c, q in QUARTERLY_REPORT_CODES if q != "Q4"]
+            else:
+                codes_to_try = QUARTERLY_REPORT_CODES
+
+            for reprt_code, q_label in codes_to_try:
                 try:
                     df = self._fetch_finstate_all_cached(stock_code, year, reprt_code)
                     if df is None:

@@ -278,6 +278,10 @@ if tab_choice == "리포트 생성":
                         f"**추이:** {trend_result.get('situation_label', '?')} "
                         f"(신뢰도 {trend_result.get('confidence', 0) * 100:.0f}%)"
                     )
+                # TTM 사용 분기 표시
+                if ttm_data and ttm_data.get("quarters_used"):
+                    used_q = ttm_data["quarters_used"]
+                    info_cols[1].write(f"**TTM:** {' + '.join(used_q)}")
 
             # 8. PDF 생성
             progress.progress(80, text="PDF 생성 중...")

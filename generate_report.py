@@ -133,7 +133,7 @@ def collect_data(fetcher, stock_code: str, num_years: int,
     quarterly_data = None
     ttm = None
     if include_quarterly:
-        print("\n분기 데이터 조회 중...")
+        print("\n분기 데이터 조회 중 (현재 연도 포함)...")
         try:
             quarterly_data = fetcher.fetch_quarterly_data(
                 stock_code, num_years=DEFAULT_QUARTERLY_YEARS
@@ -146,7 +146,8 @@ def collect_data(fetcher, stock_code: str, num_years: int,
             # TTM 계산 (최근 4분기)
             ttm = _compute_ttm(quarterly_data)
             if ttm:
-                print("  → TTM(최근 4분기) 계산 완료")
+                used = ttm.get("quarters_used", [])
+                print(f"  → TTM 계산 완료: {' + '.join(used)}")
             else:
                 print("  → TTM 계산 불가 (분기 데이터 부족)")
         except Exception as e:
