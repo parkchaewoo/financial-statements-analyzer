@@ -1,0 +1,9 @@
+opendartreader
+pykrx
+pandas
+reportlab
+python-dotenv
+yfinance
+beautifulsoup4
+requests
+streamlit

@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Environment
+.env
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
+
+# Generated reports
+*.pdf
+
+# Mobile build
+mobile/build/
+mobile/logs/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Claude
+.claude/
