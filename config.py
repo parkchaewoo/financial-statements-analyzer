@@ -5,8 +5,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# DART OpenAPI 키
+# DART OpenAPI 키 (.env 또는 Streamlit secrets)
 DART_API_KEY = os.getenv("DART_API_KEY", "")
+if not DART_API_KEY:
+    try:
+        import streamlit as st
+        DART_API_KEY = st.secrets.get("DART_API_KEY", "")
+    except Exception:
+        pass
 
 # 기본 설정
 DEFAULT_REQUIRED_RETURN = 8.0  # S-RIM 원하는 수익률 (%)
