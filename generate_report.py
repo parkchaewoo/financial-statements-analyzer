@@ -143,13 +143,13 @@ def collect_data(fetcher, stock_code: str, num_years: int,
             if len(quarters) > 0:
                 print(f"  → 분기 목록: {quarters[0]} ~ {quarters[-1]}")
 
-            # TTM 계산 (최근 4분기)
-            ttm = _compute_ttm(quarterly_data)
+            # TTM 계산 (연간 보고서 이후 분기가 있을 때만)
+            ttm = _compute_ttm(quarterly_data, latest_year)
             if ttm:
                 used = ttm.get("quarters_used", [])
                 print(f"  → TTM 계산 완료: {' + '.join(used)}")
             else:
-                print("  → TTM 계산 불가 (분기 데이터 부족)")
+                print("  → TTM 미생성 (연간 보고서 이후 분기 데이터 없음)")
         except Exception as e:
             print(f"  → 분기 데이터 조회 실패: {e}")
             quarterly_data = None
@@ -395,11 +395,14 @@ def compute_derived_metrics(data: dict, required_return: float,
     return derived, srim
 
 
-def _compute_ttm(quarterly_data: dict) -> dict | None:
+def _compute_ttm(quarterly_data: dict, latest_annual_year: int = 0) -> dict | None:
     """최근 4분기 데이터로 TTM 계산
 
     IS/CF: 최근 4분기 합산
     BS: 최근 분기 값 (시점 데이터)
+
+    연간 보고서(latest_annual_year) 이후 분기가 있어야만 TTM 계산.
+    예: latest_annual_year=2024이면 2025Q1 이후 분기가 있을 때만 TTM 생성.
     """
     if not quarterly_data:
         return None
@@ -407,6 +410,14 @@ def _compute_ttm(quarterly_data: dict) -> dict | None:
     quarters = quarterly_data.get("quarters", [])
     if len(quarters) < 4:
         return None
+
+    # 연간 보고서 이후 분기가 있는지 확인
+    if latest_annual_year:
+        has_post_annual = any(
+            int(q[:4]) > latest_annual_year for q in quarters
+        )
+        if not has_post_annual:
+            return None  # 연간과 동일 → TTM 불필요
 
     recent_4q = quarters[-4:]  # 최근 4분기
     latest_q = quarters[-1]    # 최신 분기
