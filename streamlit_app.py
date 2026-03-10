@@ -252,6 +252,16 @@ if tab_choice == "리포트 생성":
                          delta=f"{'저평가' if discount > 0 else '고평가'}",
                          delta_color="normal" if discount > 0 else "inverse")
 
+            # ROE < COE 경고 (적정가/매수시작가 역전)
+            roe_f = srim.get("roe_forecast", 0)
+            coe_v = srim.get("coe_value", 0)
+            if roe_f and coe_v and roe_f < coe_v:
+                st.warning(
+                    f"ROE({roe_f:.1f}%) < COE({coe_v:.1f}%): 초과이익이 음수이므로 "
+                    f"적정가({fmt(srim_price)})가 매수시작가({fmt(buy_price)})보다 낮게 산출됩니다. "
+                    f"W가 클수록 음의 초과이익이 오래 지속되어 기업가치가 더 낮아집니다."
+                )
+
             # 추가 정보
             with st.expander("상세 정보", expanded=False):
                 info_cols = st.columns(3)

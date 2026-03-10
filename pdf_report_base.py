@@ -385,6 +385,11 @@ class PDFReportBase:
                 [coe_label, f'{coe_value:.1f}%'],
                 [f"W(매수/적정)", f"{srim.get('w_buy', 0.5)}/{srim.get('w_fair', 1.0)}"],
             ]
+        # ROE < COE 경고
+        roe_f = srim.get("roe_forecast", 0)
+        if roe_f and coe_value and roe_f < coe_value:
+            right_info.append(["※ ROE < COE", "적정가/매수시작가 역전"])
+
         # CAPM 세부 정보 추가
         if srim.get("beta") is not None:
             right_info.append(["Beta", f'{srim.get("beta", 1.0):.2f}'])
