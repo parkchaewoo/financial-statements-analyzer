@@ -30,6 +30,12 @@ st.set_page_config(
 )
 
 
+# ── DART API 키 확인 ──────────────────────────────────────────
+
+from config import DART_API_KEY
+_dart_available = bool(DART_API_KEY)
+
+
 # ── 캐시된 fetcher ──────────────────────────────────────────
 
 @st.cache_resource
@@ -56,8 +62,13 @@ st.sidebar.title("설정")
 
 tab_choice = st.sidebar.radio("모드", ["리포트 생성", "스크리너"], horizontal=True)
 
-market = st.sidebar.selectbox("시장", ["KR", "INTL"],
-                               format_func=lambda x: "한국 (DART)" if x == "KR" else "해외 (yfinance)")
+if _dart_available:
+    market = st.sidebar.selectbox("시장", ["KR", "INTL"],
+                                   format_func=lambda x: "한국 (DART)" if x == "KR" else "해외 (yfinance)")
+else:
+    market = "INTL"
+    st.sidebar.selectbox("시장", ["해외 (yfinance)"], disabled=True)
+    st.sidebar.caption("DART API 키 미설정 → 해외 주식만 사용 가능")
 
 if tab_choice == "리포트 생성":
     stock_query = st.sidebar.text_input("종목명 또는 코드", placeholder="삼성전자 / 005930 / AAPL")
