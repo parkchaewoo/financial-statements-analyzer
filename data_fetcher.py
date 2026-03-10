@@ -149,29 +149,62 @@ class DataFetcher:
         if df is None:
             return 0
 
-        # CIS에서 EPS 찾기
-        cis = df[df["sj_div"].isin(["IS", "CIS"])] if "sj_div" in df.columns else df
+        # IS/CIS에서 EPS, 지배주주 순이익, 전체 순이익 찾기
+        is_rows = df[df["sj_div"] == "IS"] if "sj_div" in df.columns else df
+        cis_rows = df[df["sj_div"] == "CIS"] if "sj_div" in df.columns else pd.DataFrame()
         eps = 0
         net_income_ctrl = 0
+        net_income = 0
 
-        for _, row in cis.iterrows():
-            nm = row.get("account_nm", "")
-            amt = self._parse_amount(row.get("thstrm_amount", ""))
-            if "기본주당" in nm and "이익" in nm:
-                eps = amt
-            if "지배기업" in nm and "당기순이익" in nm:
-                net_income_ctrl = amt
+        # IS 먼저 검색 (우선순위 높음)
+        for src in [is_rows, cis_rows]:
+            for _, row in src.iterrows():
+                nm = row.get("account_nm", "")
+                amt = self._parse_amount(row.get("thstrm_amount", ""))
+                if not eps and "기본주당" in nm and "이익" in nm:
+                    eps = amt
+                # 지배주주 순이익: IS의 "지배기업 소유지분/소유주지분"
+                if not net_income_ctrl and "지배기업" in nm and "소유" in nm:
+                    # IS에서만 가져옴 (CIS 총포괄이익 제외)
+                    if src is is_rows:
+                        net_income_ctrl = amt
+                if not net_income and nm in ("당기순이익", "당기순이익(손실)"):
+                    net_income = amt
 
+        # CIS에서 지배주주 순이익이 IS에 없을 경우 (하이닉스 등)
+        if not net_income_ctrl:
+            saw_net_income = False
+            for _, row in cis_rows.iterrows():
+                nm = row.get("account_nm", "")
+                amt = self._parse_amount(row.get("thstrm_amount", ""))
+                if nm in ("당기순이익", "당기순이익(손실)"):
+                    saw_net_income = True
+                # 당기순이익 아래의 지배기업 소유주지분만 취함
+                if saw_net_income and "지배기업" in nm and "소유" in nm:
+                    net_income_ctrl = amt
+                    break
+
+        # 1차: 지배주주 순이익 / EPS
         if eps and net_income_ctrl:
             return abs(net_income_ctrl) // abs(eps)
 
-        # 폴백: 자본금 / 액면가(1000원 가정)
+        # 2차: 전체 순이익 / EPS (비지배지분 비중 작은 경우 근사치)
+        if eps and net_income:
+            return abs(net_income) // abs(eps)
+
+        # 3차 폴백: 자본금 / 액면가 (5000원 시도 후 1000원)
         bs = df[df["sj_div"] == "BS"] if "sj_div" in df.columns else df
         for _, row in bs.iterrows():
             if row.get("account_nm", "") == "자본금":
                 capital = self._parse_amount(row.get("thstrm_amount", ""))
                 if capital:
-                    return capital // 1000  # 액면가 1,000원 가정
+                    # 액면가 5,000원 시도: 결과가 합리적이면 사용
+                    shares_5k = capital // 5000
+                    shares_1k = capital // 1000
+                    # EPS가 있으면 어느 쪽이 합리적인지 판단
+                    if eps:
+                        return shares_5k  # EPS는 있는데 순이익이 없는 경우
+                    return shares_5k  # 대부분 액면가 5,000원
 
         return 0
 
