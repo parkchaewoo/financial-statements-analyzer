@@ -32,8 +32,21 @@ st.set_page_config(
 
 # ── DART API 키 확인 ──────────────────────────────────────────
 
-from config import DART_API_KEY
-_dart_available = bool(DART_API_KEY)
+# Streamlit secrets에서 직접 읽기 (config.py보다 우선)
+_dart_api_key = ""
+try:
+    _dart_api_key = st.secrets["DART_API_KEY"]
+except Exception:
+    pass
+if not _dart_api_key:
+    from config import DART_API_KEY
+    _dart_api_key = DART_API_KEY
+
+_dart_available = bool(_dart_api_key)
+
+# secrets에서 읽은 키를 환경변수에도 설정 (다른 모듈에서 사용)
+if _dart_api_key:
+    os.environ["DART_API_KEY"] = _dart_api_key
 
 
 # ── 캐시된 fetcher ──────────────────────────────────────────
@@ -41,7 +54,7 @@ _dart_available = bool(DART_API_KEY)
 @st.cache_resource
 def get_kr_fetcher():
     from data_fetcher import DataFetcher
-    return DataFetcher()
+    return DataFetcher(api_key=_dart_api_key)
 
 
 @st.cache_resource
