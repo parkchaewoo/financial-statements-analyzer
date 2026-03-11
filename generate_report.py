@@ -202,7 +202,8 @@ def compute_derived_metrics(data: dict, required_return: float,
         op_profit = _find(fs_y, "영업이익")
         pretax = _find(fs_y, "법인세차감전", "법인세비용차감전")
         net_income = _find(fs_y, "당기순이익")
-        net_income_ctrl = _find(fs_y, "지배기업의 소유주에게 귀속되는 당기순이익",
+        net_income_ctrl = _find(fs_y, "지배기업귀속_당기순이익",
+                                "지배기업의 소유주에게 귀속되는 당기순이익",
                                 "당기순이익(지배)")
         total_assets = _find(fs_y, "자산총계")
         total_equity = _find(fs_y, "자본총계")
@@ -545,7 +546,8 @@ def _compute_ttm_derived(ttm: dict, stock_data: dict) -> dict:
     revenue_raw = _find(fs, "매출액", "영업수익")
     op_profit_raw = _find(fs, "영업이익")
     net_income_raw = _find(fs, "당기순이익") or _find(fs, "분기순이익") or _find(fs, "반기순이익")
-    net_income_ctrl_raw = (_find(fs, "지배기업의 소유주에게 귀속되는 당기순이익",
+    net_income_ctrl_raw = (_find(fs, "지배기업귀속_당기순이익",
+                                 "지배기업의 소유주에게 귀속되는 당기순이익",
                                  "당기순이익(지배)")
                            or _find(fs, "지배기업의 소유주지분"))
 

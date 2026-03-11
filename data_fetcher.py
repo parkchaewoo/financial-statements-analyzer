@@ -256,11 +256,22 @@ class DataFetcher:
                 # 2) finstate_all로 보강 (지배주주 자본, EPS/BPS 등)
                 df_all = self._fetch_finstate_all_cached(stock_code, year)
                 if df_all is not None:
+                    # CIS에서 "당기순이익" 이후의 "지배기업의 소유주지분" =
+                    # 지배주주 당기순이익 (포괄이익 하위 동명 항목과 구분)
+                    _cis_past_ni = False
                     for _, row in df_all.iterrows():
                         nm = row.get("account_nm", "")
                         sj = row.get("sj_div", "")
                         amt = self._parse_amount(row.get("thstrm_amount", ""))
                         full_key = f"{sj}_{nm}"
+
+                        # CIS에서 당기순이익 이후 지배/비지배 분류 추출
+                        if sj == "CIS" and "당기순이익" in nm:
+                            _cis_past_ni = True
+                        if sj == "CIS" and _cis_past_ni and nm == "지배기업의 소유주지분":
+                            year_data["지배기업귀속_당기순이익"] = amt
+                            _cis_past_ni = False  # 한 번만 저장
+
                         if full_key not in year_data:
                             year_data[full_key] = amt
                         if nm not in year_data:
