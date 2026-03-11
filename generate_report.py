@@ -462,20 +462,27 @@ def _compute_ttm(quarterly_data: dict, latest_annual_year: int = 0) -> dict | No
         if has_data:
             raw_summary[key] = total
 
+    # 연환산 배수: 4분기 미만이면 연환산 (IS/CF는 누적값이므로)
+    n_quarters = len(post_annual_q)
+    ann_factor = 4 / n_quarters if n_quarters < 4 else 1
+
     # 원본 키 유지 + 정규화된 키 추가 (연간 필드명으로 검색 가능하도록)
-    ttm_summary = dict(raw_summary)
+    # IS 항목은 연환산 적용 (연간 데이터와 비교 가능하도록)
+    ttm_summary = {}
+    for key, val in raw_summary.items():
+        ttm_summary[key] = int(val * ann_factor) if val else 0
     for key, val in raw_summary.items():
         norm_key = _normalize_key(key)
         if norm_key != key and norm_key not in ttm_summary and val:
-            ttm_summary[norm_key] = val
+            ttm_summary[norm_key] = int(val * ann_factor)
 
-    # BS: 최신 분기 값
+    # BS: 최신 분기 값 (시점 데이터 → 연환산 안 함)
     ttm_bs = {}
     qbs = quarterly_data.get("quarterly_bs", {})
     if latest_q in qbs:
         ttm_bs = dict(qbs[latest_q])
 
-    # CF: 해당 분기 합산
+    # CF: 해당 분기 합산 후 연환산
     ttm_cf = {}
     qcf = quarterly_data.get("quarterly_cf", {})
     all_cf_keys = set()
@@ -491,11 +498,14 @@ def _compute_ttm(quarterly_data: dict, latest_annual_year: int = 0) -> dict | No
                 total += val
                 has_data = True
         if has_data:
-            ttm_cf[key] = total
+            ttm_cf[key] = int(total * ann_factor)
 
-    # TTM 라벨: "2025 TTM" (사용 분기의 연도)
+    # TTM 라벨: "2025 TTM" + 연환산 표시
     ttm_year = int(post_annual_q[-1][:4])
-    ttm_label = f"{ttm_year} TTM"
+    if n_quarters < 4:
+        ttm_label = f"{ttm_year} TTM*"
+    else:
+        ttm_label = f"{ttm_year} TTM"
 
     return {
         "financial_summary": ttm_summary,
@@ -503,11 +513,19 @@ def _compute_ttm(quarterly_data: dict, latest_annual_year: int = 0) -> dict | No
         "cash_flow": ttm_cf,
         "quarters_used": post_annual_q,
         "ttm_label": ttm_label,
+        "annualized": n_quarters < 4,
+        "ann_factor": ann_factor,
     }
 
 
 def _compute_ttm_derived(ttm: dict, stock_data: dict) -> dict:
-    """TTM 데이터에서 파생 지표 계산"""
+    """TTM 데이터에서 파생 지표 계산
+
+    분기 수가 4 미만일 경우 IS/CF 금액을 연환산(annualize)하여
+    연간 데이터와 비교 가능한 비율을 산출한다.
+    (예: 3분기 합산 → ×4/3, 1분기만 → ×4/1)
+    BS(재무상태표)는 시점 데이터이므로 연환산하지 않는다.
+    """
     if not ttm:
         return {}
 
@@ -516,34 +534,46 @@ def _compute_ttm_derived(ttm: dict, stock_data: dict) -> dict:
     cf_data = ttm.get("cash_flow", {})
     shares = stock_data.get("shares", 0)
 
+    # 연환산 배수: 4 / 사용 분기 수
+    n_quarters = len(ttm.get("quarters_used", []))
+    ann_factor = 4 / n_quarters if n_quarters else 1
+
     td = {}
 
     # 주요 계정 추출 (분기 보고서: 당기→분기/반기 필드명 대응)
-    revenue = _find(fs, "매출액", "영업수익")
-    op_profit = _find(fs, "영업이익")
-    net_income = _find(fs, "당기순이익") or _find(fs, "분기순이익") or _find(fs, "반기순이익")
-    net_income_ctrl = (_find(fs, "지배기업의 소유주에게 귀속되는 당기순이익",
-                             "당기순이익(지배)")
-                       or _find(fs, "지배기업의 소유주지분"))
+    # IS 항목은 합산값이므로 연환산 적용
+    revenue_raw = _find(fs, "매출액", "영업수익")
+    op_profit_raw = _find(fs, "영업이익")
+    net_income_raw = _find(fs, "당기순이익") or _find(fs, "분기순이익") or _find(fs, "반기순이익")
+    net_income_ctrl_raw = (_find(fs, "지배기업의 소유주에게 귀속되는 당기순이익",
+                                 "당기순이익(지배)")
+                           or _find(fs, "지배기업의 소유주지분"))
+
+    revenue = int(revenue_raw * ann_factor) if revenue_raw else 0
+    op_profit = int(op_profit_raw * ann_factor) if op_profit_raw else 0
+    net_income = int(net_income_raw * ann_factor) if net_income_raw else 0
+    net_income_ctrl = int(net_income_ctrl_raw * ann_factor) if net_income_ctrl_raw else 0
+
+    # BS 항목은 시점 데이터 → 연환산 안 함
     total_assets = _find(bs_data, "자산총계")
     total_equity = _find(bs_data, "자본총계")
     equity_ctrl = _find(bs_data, "지배기업의 소유주에게 귀속되는 자본",
                         "자본총계(지배)")
 
-    # 수익성
+    # 수익성 (연환산된 IS / 시점 BS)
     td["영업이익률(%)"] = calc_opm(op_profit, revenue)
     td["ROE(%)"] = calc_roe(net_income, total_equity) if total_equity else 0
     td["ROA(%)"] = calc_roa(net_income, total_assets) if total_assets else 0
     td["레버리지비율"] = calc_leverage_ratio(td["ROE(%)"], td["ROA(%)"])
 
-    # 밸류에이션 (현재 시가총액 기준)
+    # 밸류에이션 (현재 시가총액 vs 연환산 이익)
     current_mktcap = stock_data.get("market_cap", 0)
     td["PER"] = calc_per(current_mktcap, net_income) if (net_income and current_mktcap) else 0
     td["PBR"] = calc_pbr(current_mktcap, total_equity) if (total_equity and current_mktcap) else 0
     td["EPS"] = calc_eps(net_income_ctrl or net_income, shares) if shares else 0
     td["BPS"] = calc_bps(equity_ctrl or total_equity, shares) if shares else 0
 
-    # 운전자본
+    # 운전자본 (BS 시점값, 비율 계산 시 연환산 매출 사용)
     receivables = _find(bs_data, "매출채권")
     inventory = _find(bs_data, "재고자산")
     payables = _find(bs_data, "매입채무")
@@ -588,14 +618,19 @@ def _compute_ttm_derived(ttm: dict, stock_data: dict) -> dict:
     # 순차입금
     td["순차입금"] = calc_net_debt(total_debt, cash_total)
 
-    # 현금흐름
-    op_cf = _find(cf_data, "영업활동으로 인한 현금흐름", "영업활동현금흐름")
-    inv_cf = _find(cf_data, "투자활동으로 인한 현금흐름", "투자활동현금흐름")
-    fin_cf = _find(cf_data, "재무활동으로 인한 현금흐름", "재무활동현금흐름")
+    # 현금흐름 (CF도 합산값이므로 연환산)
+    op_cf_raw = _find(cf_data, "영업활동으로 인한 현금흐름", "영업활동현금흐름")
+    inv_cf_raw = _find(cf_data, "투자활동으로 인한 현금흐름", "투자활동현금흐름")
+    fin_cf_raw = _find(cf_data, "재무활동으로 인한 현금흐름", "재무활동현금흐름")
 
     capex_tangible = _find(cf_data, "유형자산의 취득")
     capex_intangible = _find(cf_data, "무형자산의 취득")
-    capex = -(abs(capex_tangible) + abs(capex_intangible)) if (capex_tangible or capex_intangible) else 0
+    capex_raw = -(abs(capex_tangible) + abs(capex_intangible)) if (capex_tangible or capex_intangible) else 0
+
+    op_cf = int(op_cf_raw * ann_factor) if op_cf_raw else 0
+    inv_cf = int(inv_cf_raw * ann_factor) if inv_cf_raw else 0
+    fin_cf = int(fin_cf_raw * ann_factor) if fin_cf_raw else 0
+    capex = int(capex_raw * ann_factor) if capex_raw else 0
 
     fcf = op_cf + capex if (op_cf and capex) else 0
 

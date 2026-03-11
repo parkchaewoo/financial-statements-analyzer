@@ -178,6 +178,9 @@ class AnnualReportGenerator(PDFReportBase):
             rows.append(row)
 
         desc = f"단위: {self._unit_label()} | 성장률: 전년대비 YoY(%)"
+        if show_ttm and ttm.get("annualized"):
+            used_q = ttm.get("quarters_used", [])
+            desc += f"\n* TTM: {'+'.join(used_q)} 기준 연환산(×{ttm['ann_factor']:.2f})"
         return self._section_table(rows, len(years), highlights=highlights, description=desc, ttm_column=show_ttm)
 
     # ── 수익성 ───────────────────────────────────────────────
